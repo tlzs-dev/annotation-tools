@@ -1,0 +1,17 @@
+*
+!.gitignore
+!LICENSE
+
+!*.c
+!*.h
+!*.md
+!Makefile
+!*.sh
+!src
+!include
+!utils
+!lang
+
+*.so
+*.bak
+
