@@ -215,6 +215,8 @@ int global_params_parse_args(global_params_t * params, int argc, char ** argv)
 	return 0;
 }
 
+static char g_app_path[PATH_MAX];
+const char * get_app_path(void) { return g_app_path; }
 
 int main(int argc, char **argv)
 {
@@ -225,6 +227,7 @@ int main(int argc, char **argv)
 	char realpath[PATH_MAX] = "";
 	ssize_t cb = readlink("/proc/self/exe", realpath, sizeof(realpath));
 	assert(cb > 0);
+	
 
 	char * lang_dir = dirname(realpath);
 	assert(lang_dir);
@@ -232,6 +235,8 @@ int main(int argc, char **argv)
 	char * p_bin_dir = strstr(lang_dir, "/bin");
 	if(p_bin_dir) *p_bin_dir = '\0';
 
+	strncpy(g_app_path, lang_dir, sizeof(g_app_path));
+	
 	strcat(lang_dir, "/lang");
 	printf("text_domain_path: %s\n", lang_dir);
 

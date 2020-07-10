@@ -34,7 +34,7 @@
 #include "property-list.h"
 #include "utils.h"
 
-
+const char * get_app_path(void);
 typedef struct shell_private
 {
 	shell_ctx_t base[1];
@@ -44,10 +44,13 @@ typedef struct shell_private
 	GtkWidget * header_bar;
 	GtkWidget * statusbar;
 	GtkWidget * combo;
+	
+	GtkWidget * filename_label;
 
 	da_panel_t * panels[1];		// TODO: multi-viewport support
 	property_list_t * properties;
 	
+	const char * app_path;
 	char image_file[PATH_MAX];
 	char label_file[PATH_MAX];
 
@@ -65,13 +68,47 @@ static int shell_stop(shell_ctx_t * shell)
 	return 0;
 }
 
-static void on_load_image(GtkFileChooserButton * chooser, shell_private_t * priv)
+static void on_load_image(GtkButton * button, shell_private_t * priv)
 {
+	GtkWidget * dlg = gtk_file_chooser_dialog_new(_("load image"), 
+		GTK_WINDOW(priv->window),
+		GTK_FILE_CHOOSER_ACTION_OPEN,
+		_("open"), GTK_RESPONSE_APPLY,
+		_("cancel"), GTK_RESPONSE_CANCEL,
+		NULL
+		);
+	GtkFileFilter * filter = gtk_file_filter_new();
+	gtk_file_filter_set_name(filter, "image files (jpeg/png)");
+	gtk_file_filter_add_mime_type(filter, "image/jpeg");
+	gtk_file_filter_add_mime_type(filter, "image/png");
+	gtk_file_chooser_set_filter(GTK_FILE_CHOOSER(dlg), filter);
+	
+	assert(priv->app_path);
+	if(priv->image_file[0] == '\0') gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(dlg), priv->app_path);
+	else gtk_file_chooser_set_filename(GTK_FILE_CHOOSER(dlg), priv->image_file);
+	
+	gtk_widget_show_all(dlg);
+	
+	int response = gtk_dialog_run(GTK_DIALOG(dlg));
+	switch(response)
+	{
+	case GTK_RESPONSE_APPLY: break;
+	default:
+		gtk_widget_destroy(dlg);
+		return;
+	}
+
+	
 	guint msgid = gtk_statusbar_get_context_id(GTK_STATUSBAR(priv->statusbar), "info");
-	const char * path_name = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(chooser));
+	const char * path_name = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dlg));
 	gtk_statusbar_push(GTK_STATUSBAR(priv->statusbar), msgid, path_name);
 	int rc = 0;
-
+	
+	const char * p_filename = strrchr(path_name, '/');
+	if(NULL == p_filename) p_filename = path_name;
+	else ++p_filename;
+	gtk_label_set_text(GTK_LABEL(priv->filename_label), p_filename);
+	
 	priv->image_file[0] = '\0';
 	priv->label_file[0] = '\0';
 
@@ -99,6 +136,9 @@ static void on_load_image(GtkFileChooserButton * chooser, shell_private_t * priv
 		snprintf(priv->label_file, sizeof(priv->label_file), "%s.txt", path_name);
 	}
 	
+	GtkWidget * combo = priv->combo;
+	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
+	
 	da_panel_t * panel = priv->panels[0];
 	assert(panel->load_image);
 	if(panel->load_image)
@@ -116,6 +156,8 @@ static void on_load_image(GtkFileChooserButton * chooser, shell_private_t * priv
 		}
 		panel->load_image(panel, path_name);
 	}
+	
+	gtk_widget_destroy(dlg);
 	return;
 }
 
@@ -153,6 +195,8 @@ static int shell_init(shell_ctx_t * shell, void * settings)
 {
 	shell_private_t * priv = (shell_private_t *)shell;
 	assert(priv);
+	
+	priv->app_path = get_app_path();
 
 	GtkWidget * window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	GtkWidget * header_bar = gtk_header_bar_new();
@@ -191,15 +235,15 @@ static int shell_init(shell_ctx_t * shell, void * settings)
 	gtk_box_pack_start(GTK_BOX(vbox), statusbar, FALSE, TRUE, 0);
 
 	
-
-
-	GtkWidget * filechooser = gtk_file_chooser_button_new(_("load image"), GTK_FILE_CHOOSER_ACTION_OPEN);
-	GtkFileFilter * filter = gtk_file_filter_new();
-	gtk_file_filter_add_mime_type(filter, "image/jpeg");
-	gtk_file_filter_add_mime_type(filter, "image/png");
-	gtk_file_chooser_set_filter(GTK_FILE_CHOOSER(filechooser), filter);
-	g_signal_connect(filechooser, "file-set", G_CALLBACK(on_load_image), shell);
-	gtk_header_bar_pack_start(GTK_HEADER_BAR(header_bar), filechooser);
+	GtkWidget * load_btn = gtk_button_new_from_icon_name("document-open", GTK_ICON_SIZE_BUTTON);
+	gtk_header_bar_pack_start(GTK_HEADER_BAR(header_bar), load_btn);
+	g_signal_connect(load_btn, "clicked", G_CALLBACK(on_load_image), shell);
+	
+	GtkWidget * filename_label = gtk_label_new("");
+	gtk_widget_set_size_request(filename_label, 80, -1);
+	priv->filename_label = filename_label;
+	gtk_header_bar_pack_start(GTK_HEADER_BAR(header_bar), filename_label);
+	
 
 	GtkWidget * save_btn = gtk_button_new_from_icon_name("document-save", GTK_ICON_SIZE_BUTTON);
 	assert(save_btn);
@@ -227,8 +271,8 @@ static int shell_init(shell_ctx_t * shell, void * settings)
 	GtkWidget * combo = gtk_combo_box_new_with_entry();
 	
 	gtk_combo_box_set_model(GTK_COMBO_BOX(combo), GTK_TREE_MODEL(store));
-	g_object_unref(store);
-
+	//~ g_object_unref(store);
+	
 	GtkCellRenderer * cr = NULL;
 
 	cr = gtk_cell_renderer_text_new();
@@ -272,14 +316,14 @@ static int shell_init(shell_ctx_t * shell, void * settings)
 	priv->header_bar = header_bar;
 	priv->content_area = vbox;
 	priv->statusbar = statusbar;
+	
 
 	gtk_window_set_default_size(GTK_WINDOW(window), 1280, 800);
 
 	gtk_window_set_role(GTK_WINDOW(window), "debug-test");
 
 	if(NULL == jshell) return 0;
-
-
+	
 	// TODO: load config
 	
 	return 0;
