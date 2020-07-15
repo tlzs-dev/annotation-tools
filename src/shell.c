@@ -120,24 +120,11 @@ static void on_load_image(GtkButton * button, shell_private_t * priv)
 	strncpy(annotation_file, path_name, sizeof(annotation_file));
 
 	char * p_ext = strrchr(annotation_file, '.');
-	strcat(annotation_file, ".txt");
-	rc = check_file(annotation_file);
-	if(rc && p_ext)
-	{
-		strcpy(p_ext, ".txt");
-		rc = check_file(annotation_file);
-	}
-
-	if(0 == rc)
-	{
-		strncpy(priv->label_file, annotation_file, sizeof(priv->label_file));
-	}else
-	{
-		snprintf(priv->label_file, sizeof(priv->label_file), "%s.txt", path_name);
-	}
+	if(p_ext) strcpy(p_ext, ".txt");
+	else strcat(annotation_file, ".txt");
 	
-	GtkWidget * combo = priv->combo;
-	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
+	strncpy(priv->label_file, annotation_file, sizeof(priv->label_file));
+	rc = check_file(priv->label_file);
 	
 	da_panel_t * panel = priv->panels[0];
 	assert(panel->load_image);
@@ -240,7 +227,7 @@ static int shell_init(shell_ctx_t * shell, void * settings)
 	g_signal_connect(load_btn, "clicked", G_CALLBACK(on_load_image), shell);
 	
 	GtkWidget * filename_label = gtk_label_new("");
-	gtk_widget_set_size_request(filename_label, 80, -1);
+	gtk_widget_set_size_request(filename_label, 180, -1);
 	priv->filename_label = filename_label;
 	gtk_header_bar_pack_start(GTK_HEADER_BAR(header_bar), filename_label);
 	
@@ -248,7 +235,7 @@ static int shell_init(shell_ctx_t * shell, void * settings)
 	GtkWidget * save_btn = gtk_button_new_from_icon_name("document-save", GTK_ICON_SIZE_BUTTON);
 	assert(save_btn);
 	g_signal_connect(save_btn, "clicked", G_CALLBACK(on_save_annotation), shell);
-	gtk_header_bar_pack_end(GTK_HEADER_BAR(header_bar), save_btn);
+	gtk_header_bar_pack_start(GTK_HEADER_BAR(header_bar), save_btn);
 
 
 	global_params_t * params = global_params_get_default();
@@ -379,6 +366,9 @@ void shell_redraw(shell_ctx_t * shell)
 	shell_private_t * priv = (shell_private_t *)shell;
 	property_list_t * props = priv->properties;
 	property_list_redraw(props);
+	
+	// auto save 
+	on_save_annotation(NULL, priv);
 	return;
 }
 

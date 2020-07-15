@@ -172,6 +172,13 @@ static int annotation_list_save(annotation_list_t * list, const char * filename)
 {
 	int rc = 0;
 	assert(list);
+	
+	if(list->length <= 0)
+	{
+		remove(filename);
+		return 0;
+	}
+	
 	FILE * fp = fopen(filename, "w+");
 	if(NULL == fp) return -1;
 
